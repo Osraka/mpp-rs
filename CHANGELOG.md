@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1 (2026-08-31)
+
+### Patch Changes
+
+- Added a machine-payment metadata field to every Stripe PaymentIntent created by mpp-rs. (by @ShanedaSilva, [#403](https://github.com/tempoxyz/mpp-rs/pull/403))
+
 ## 0.12.0 (2026-08-27)
 
 ### Minor Changes
