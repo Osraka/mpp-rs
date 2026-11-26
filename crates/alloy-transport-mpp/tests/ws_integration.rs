@@ -262,13 +262,16 @@ async fn receipt_object_not_acknowledging_payment_does_not_commit() {
     let mut no_reference = json_to_value(Receipt::success("tempo", "0xnone")).unwrap();
     no_reference.as_object_mut().unwrap().remove("reference");
     for body in [json!({}), failed, other_method, no_reference] {
+        let (check_complete, wait_for_check) = tokio::sync::oneshot::channel();
         let url = spawn_server(move |mut ws| {
             Box::pin(async move {
                 send_text(&mut ws, challenge_frame()).await;
                 let _credential = recv_value(&mut ws).await;
                 send_text(&mut ws, json!({ "type": "receipt", "receipt": body })).await;
-                // The connection stays open and the payment pending, so a
-                // later Receipt still commits it.
+                // Let the test observe the pending payment before acknowledging it.
+                if wait_for_check.await.is_err() {
+                    return;
+                }
                 send_text(&mut ws, receipt_frame()).await;
                 sleep(Duration::from_millis(100)).await;
             })
@@ -283,6 +286,7 @@ async fn receipt_object_not_acknowledging_payment_does_not_commit() {
         let error = next_error(&mut events).await;
         assert!(error.contains("does not acknowledge"), "{error}");
         assert_eq!(provider.commits.load(Ordering::SeqCst), 0);
+        check_complete.send(()).unwrap();
         loop {
             let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
             if matches!(event, MppEvent::Receipt(_)) {
